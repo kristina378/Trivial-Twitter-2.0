@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <sys/fcntl.h>
 #include <sys/ipc.h>
-#include <sys/signal.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -36,17 +35,40 @@ void handler(int sig) {
     _exit(0);
 }
 
+void client_handler(int sig){
+    
+    printf("_____Twitter 2.0_____\n");
+
+    struct shmid_ds buf;
+    shmctl(shmid, IPC_STAT, &buf);
+    int n = buf.shm_segsz / sizeof(record);
+
+    for(unsigned i = 0; i < n; i++){
+        if(data[i].ifFree == false){
+            printf("[%s]: %s [Likes: %d]\n",data[i].username,data[i].UserPost,data[i].LikesCount);
+        }
+    }
+
+    printf("\n\n");
+}
 
 
 int main(int argc, char **argv) {
     struct sigaction act;
+    struct sigaction clientAct;
 
     act.sa_handler = &handler;
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
 
+    clientAct.sa_handler = &client_handler;
+    sigemptyset(&clientAct.sa_mask);
+    clientAct.sa_flags = 0;
+
     sigaction(SIGINT, &act, NULL);
     sigaction(SIGQUIT, &act, NULL);
+
+    sigaction(SIGUSR1, &clientAct, NULL);
 
 
   if (argc < 3) {
@@ -113,6 +135,32 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
     }
+
+    int ServersPid_shmid = shmget(key + 1, sizeof(pid_t), IPC_CREAT | 0644);
+    if(ServersPid_shmid == -1){
+        perror("shmget: Failed to create/associate memory for server's PID");
+
+        shmdt(data);
+        shmctl(shmid, IPC_RMID, NULL);
+        semctl(semid, 0, IPC_RMID);
+
+        exit(EXIT_FAILURE);
+    }
+
+    pid_t *ServersPidPtr = shmat(ServersPid_shmid, NULL, 0);
+    if(ServersPidPtr == (void*)(-1)){
+        perror("shmat: Failed to create/associate memory for server's PID");
+
+        shmdt(data);
+        shmctl(shmid, IPC_RMID, NULL);
+        shmctl(ServersPid_shmid, IPC_RMID, NULL);
+        semctl(semid, 0, IPC_RMID);
+
+        exit(EXIT_FAILURE);
+    }
+
+    *ServersPidPtr = getpid();
+
 
 
     printf("Server running. Press Ctrl+C/Ctrl \\ to exit.\n");

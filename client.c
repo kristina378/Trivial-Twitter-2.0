@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,6 +76,30 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    int ServersPid_shmid = shmget(key + 1,0,0644);
+    if(ServersPid_shmid == -1){
+        perror("shmget: Failed to create/associate memory for server's PID");
+
+        shmdt(data);
+        shmctl(shmid, IPC_RMID, NULL);
+        semctl(semid, 0, IPC_RMID);
+
+        exit(EXIT_FAILURE);
+    }
+
+    pid_t *ServersPidPtr = shmat(ServersPid_shmid, NULL, 0);
+    if(ServersPidPtr == (void*)(-1)){
+        perror("shmat: Failed to create/associate memory for server's PID");
+
+        shmdt(data);
+        shmctl(shmid, IPC_RMID, NULL);
+        shmctl(ServersPid_shmid, IPC_RMID, NULL);
+        semctl(semid, 0, IPC_RMID);
+
+        exit(EXIT_FAILURE);
+    }
+
+
     if (strcmp(argv[2], "N") == 0) {
 
         int index = -1;
@@ -125,6 +150,8 @@ int main(int argc, char **argv) {
         }
 
         printf("Post added successfully!\n");
+
+        kill(*ServersPidPtr,SIGUSR1);
     }
 
     else if (strcmp(argv[2], "P") == 0) {
@@ -173,6 +200,9 @@ int main(int argc, char **argv) {
 
             data[post_num - 1].LikesCount++;
             printf("Post liked!\n");
+
+            kill(*ServersPidPtr,SIGUSR1);
+
 
             SemOp.sem_op = 1;
 
