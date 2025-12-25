@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/sem.h>
 
 enum bool { true = 1, false = 0 };
 typedef enum bool bool;
@@ -62,9 +63,22 @@ int main(int argc, char **argv) {
     int n = buf.shm_segsz / sizeof(record);
 
 
+    int semid = semget(key, 0, 0644);
+
+    if(semid == -1){
+        perror("semget");
+        if (shmdt(data) == -1) {
+            perror("shmdt");
+            exit(EXIT_FAILURE);
+        }
+
+        exit(EXIT_FAILURE);
+    }
+
     if (strcmp(argv[2], "N") == 0) {
 
         int index = -1;
+        
         for (int i = 0; i < n; i++) {
             if (data[i].ifFree == true) {
                 index = i;
@@ -79,29 +93,49 @@ int main(int argc, char **argv) {
         }
 
         char new_entry[1024];
-        printf("Greetings from Twitter 2.0 :) (version C)\n");
+        printf("Greetings from Twitter 2.0 :) (version A)\n");
         printf("Enter new entry:\n> ");
 
         fgets(new_entry, sizeof(new_entry), stdin);
         new_entry[strcspn(new_entry, "\n")] = '\0';
 
+        struct sembuf SemOp;
+
+        SemOp.sem_num = index;
+        SemOp.sem_op = -1;
+        SemOp.sem_flg = 0;
+
+        if(semop(semid,&SemOp,1) == -1){
+            perror("semop");
+            shmdt(data);
+            exit(EXIT_FAILURE);
+        }
+
         snprintf(data[index].username, sizeof(data[index].username), "%s", argv[3]);
         snprintf(data[index].UserPost, sizeof(data[index].UserPost), "%s", new_entry);
         data[index].LikesCount = 0;
         data[index].ifFree = false;
+        
+        SemOp.sem_op = 1;
+
+        if(semop(semid,&SemOp,1) == -1){
+            perror("semop");
+            shmdt(data);
+            exit(EXIT_FAILURE);
+        }
 
         printf("Post added successfully!\n");
     }
 
     else if (strcmp(argv[2], "P") == 0) {
 
-        printf("Greetings from Twitter 2.0 :) (version C)\n");
+        printf("Greetings from Twitter 2.0 :) (version A)\n");
         printf("Entries in service:\n");
 
         int printed = 0;
 
         for (int i = 0; i < n; i++) {
-            if (!data[i].ifFree) {
+            if (data[i].ifFree == false) {
                 printf("%d. %s [Author: %s, Likes: %d]\n",
                        i + 1,
                        data[i].UserPost,
@@ -121,11 +155,32 @@ int main(int argc, char **argv) {
         int post_num;
         scanf("%d", &post_num);
 
-        if (post_num < 1 || post_num > n || data[post_num - 1].ifFree) {
+        if (post_num < 1 || post_num > n || data[post_num - 1].ifFree == true) {
             fprintf(stderr, "Invalid post number!\n");
         } else {
+
+            struct sembuf SemOp;
+
+            SemOp.sem_num = post_num - 1;
+            SemOp.sem_flg = 0;
+            SemOp.sem_op = -1;
+
+            if(semop(semid, &SemOp, 1) == -1){
+                perror("semop");
+                shmdt(data);
+                exit(EXIT_FAILURE);
+            }
+
             data[post_num - 1].LikesCount++;
             printf("Post liked!\n");
+
+            SemOp.sem_op = 1;
+
+            if(semop(semid, &SemOp, 1) == -1){
+                perror("semop");
+                shmdt(data);
+                exit(EXIT_FAILURE);
+            }
         }
     }
 

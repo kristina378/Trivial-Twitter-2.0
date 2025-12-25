@@ -9,7 +9,7 @@
 #include <sys/shm.h>
 #include <signal.h>
 #include <string.h>
-//#include <sys/sem.h>
+#include <sys/sem.h>
 
 enum bool{true = 1,false = 0};
 typedef enum bool bool;
@@ -22,7 +22,7 @@ struct record{
 };
 typedef struct record record;
 
-int shmid;
+int shmid, semid;
 record* data;
 
 void handler(int sig) {
@@ -31,6 +31,7 @@ void handler(int sig) {
 
     shmdt(data);
     shmctl(shmid, IPC_RMID, NULL);
+    semctl(semid, 0, IPC_RMID);
 
     _exit(0);
 }
@@ -73,14 +74,12 @@ int main(int argc, char **argv) {
 
   if((shmid = shmget(key, SHM_SIZE, 0644|IPC_CREAT)) == -1){
     perror("shmget: Failed to allocate shared memory");
-    //free(sem);
     exit(EXIT_FAILURE);
   }
 
   data = shmat(shmid, (void *)0, 0);
   if (data == (void *)(-1)) {
         perror("shmat: Failed to map memory");
-        //free(sem);
         exit(EXIT_FAILURE);
     }
 
@@ -90,6 +89,31 @@ int main(int argc, char **argv) {
         data[index].UserPost[0] = '\0';
         data[index].ifFree = true;
     }
+
+    semid = semget(key, n, IPC_CREAT | 0644);
+
+    if(semid == -1){
+        perror("semget");
+
+        shmdt(data);
+        shmctl(shmid, IPC_RMID, NULL);
+
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < n; i++) {
+        if(semctl(semid, i, SETVAL, 1) == -1){
+
+            fprintf(stderr,"semctl: Couldn't set value of %d semaphore\n",i+1);
+
+            shmdt(data);
+            shmctl(shmid, IPC_RMID, NULL);
+
+            
+            exit(EXIT_FAILURE);
+        }
+    }
+
 
     printf("Server running. Press Ctrl+C/Ctrl \\ to exit.\n");
 
