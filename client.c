@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
 
     if (argc < 3) {
         fprintf(stderr,
-            "Client: not enough arguments!\nUsage: ./client <file> <N/P> [username]\n");
+            "Client: not enough arguments!\nUsage: ./client <file> <P/N> [username]\n");
         exit(EXIT_FAILURE);
     }
 
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 
     pid_t *ServersPidPtr = shmat(ServersPid_shmid, NULL, 0);
     if(ServersPidPtr == (void*)(-1)){
-        perror("shmat: Failed to create/associate memory for server's PID");
+        perror("shmat: Failed to associate memory for server's PID");
 
         shmdt(data);
         shmctl(shmid, IPC_RMID, NULL);
@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
         }
 
         char new_entry[1024];
-        printf("Greetings from Twitter 2.0 :) (version A)\n");
+        printf("Greetings from Twitter 2.0 :) (version A)\n\n");
         printf("Enter new entry:\n> ");
 
         fgets(new_entry, sizeof(new_entry), stdin);
@@ -156,14 +156,14 @@ int main(int argc, char **argv) {
 
     else if (strcmp(argv[2], "P") == 0) {
 
-        printf("Greetings from Twitter 2.0 :) (version A)\n");
+        printf("Greetings from Twitter 2.0 :) (version A)\n\n");
         printf("Entries in service:\n");
 
         int printed = 0;
 
         for (int i = 0; i < n; i++) {
             if (data[i].ifFree == false) {
-                printf("%d. %s [Author: %s, Likes: %d]\n",
+                printf("\t%d. %s [Author: %s, Likes: %d]\n",
                        i + 1,
                        data[i].UserPost,
                        data[i].username,

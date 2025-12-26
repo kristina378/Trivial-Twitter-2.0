@@ -21,15 +21,16 @@ struct record{
 };
 typedef struct record record;
 
-int shmid, semid;
+int shmid, semid, ServersPid_shmid;
 record* data;
 
 void handler(int sig) {
-    const char *msg = "Server: cleaning up...\n";
+    const char *msg = "\nServer: cleaning up...\n";
     write(STDERR_FILENO, msg, strlen(msg));
 
     shmdt(data);
     shmctl(shmid, IPC_RMID, NULL);
+    shmctl(ServersPid_shmid, IPC_RMID, NULL);
     semctl(semid, 0, IPC_RMID);
 
     _exit(0);
@@ -76,7 +77,7 @@ int main(int argc, char **argv) {
             "Server: didn't get enough arguments!\nGot:%d arguments\nNeed: 3 "
             "arguments\n",
             argc - 1);
-    fprintf(stderr,"Server exited...\n");
+    fprintf(stderr,"Usage: ./server <filename> <shm_blocks_count>\n");
     exit(EXIT_FAILURE);
   }
 
@@ -136,7 +137,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    int ServersPid_shmid = shmget(key + 1, sizeof(pid_t), IPC_CREAT | 0644);
+    ServersPid_shmid = shmget(key + 1, sizeof(pid_t), IPC_CREAT | 0644);
     if(ServersPid_shmid == -1){
         perror("shmget: Failed to create/associate memory for server's PID");
 
@@ -163,7 +164,7 @@ int main(int argc, char **argv) {
 
 
 
-    printf("Server running. Press Ctrl+C/Ctrl \\ to exit.\n");
+    printf("Server running. Press 'Ctrl + C' or 'Ctrl \\' to exit.\n\n");
 
     for (;;) pause();
 
