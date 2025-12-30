@@ -79,23 +79,14 @@ int main(int argc, char **argv) {
     int ServersPid_shmid = shmget(key + 1,0,0644);
     if(ServersPid_shmid == -1){
         perror("shmget: Failed to create/associate memory for server's PID");
-
         shmdt(data);
-        shmctl(shmid, IPC_RMID, NULL);
-        semctl(semid, 0, IPC_RMID);
-
         exit(EXIT_FAILURE);
     }
 
     pid_t *ServersPidPtr = shmat(ServersPid_shmid, NULL, 0);
     if(ServersPidPtr == (void*)(-1)){
         perror("shmat: Failed to associate memory for server's PID");
-
         shmdt(data);
-        shmctl(shmid, IPC_RMID, NULL);
-        shmctl(ServersPid_shmid, IPC_RMID, NULL);
-        semctl(semid, 0, IPC_RMID);
-
         exit(EXIT_FAILURE);
     }
 
@@ -103,13 +94,35 @@ int main(int argc, char **argv) {
     if (strcmp(argv[2], "N") == 0) {
 
         int index = -1;
-        
+
         for (int i = 0; i < n; i++) {
+
+            struct sembuf SemOp;
+
+            SemOp.sem_num = i;
+            SemOp.sem_op = -1;
+            SemOp.sem_flg = 0;
+
+            if(semop(semid, &SemOp, 1) == -1){
+                perror("semop");
+                shmdt(data);
+                exit(EXIT_FAILURE);
+            }
+
             if (data[i].ifFree == true) {
                 index = i;
                 break;
             }
+
+            SemOp.sem_op = 1;
+
+            if(semop(semid, &SemOp, 1) == -1){
+                perror("semop");
+                shmdt(data);
+                exit(EXIT_FAILURE);
+            }
         }
+
 
         if (index == -1) {
             fprintf(stderr, "Twitter 2.0: No free space left!\n");
@@ -124,24 +137,16 @@ int main(int argc, char **argv) {
         fgets(new_entry, sizeof(new_entry), stdin);
         new_entry[strcspn(new_entry, "\n")] = '\0';
 
-        struct sembuf SemOp;
-
-        SemOp.sem_num = index;
-        SemOp.sem_op = -1;
-        SemOp.sem_flg = 0;
-
-        if(semop(semid,&SemOp,1) == -1){
-            perror("semop");
-            shmdt(data);
-            exit(EXIT_FAILURE);
-        }
 
         snprintf(data[index].username, sizeof(data[index].username), "%s", argv[3]);
         snprintf(data[index].UserPost, sizeof(data[index].UserPost), "%s", new_entry);
         data[index].LikesCount = 0;
         data[index].ifFree = false;
-        
+
+        struct sembuf SemOp;
+        SemOp.sem_num = index;
         SemOp.sem_op = 1;
+        SemOp.sem_flg = 0;
 
         if(semop(semid,&SemOp,1) == -1){
             perror("semop");
